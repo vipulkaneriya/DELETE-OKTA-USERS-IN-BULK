@@ -1,4 +1,3 @@
-import json
 import os
 import requests
 import csv
@@ -21,7 +20,7 @@ import threading
 		GETUSER_FLAG  [YES | NO]
 
         DELETE_FILTER   ["DEPROVISIONED" (Deactivated) | "PROVISIONED" | "SUSPENDED" | "STAGED" | "ACTIVE"]
-            (Delete users based on it's current status.)
+            (Delete users based on its current status.)
 		GETUSER_FILTER  ["DEPROVISIONED" (Deactivated) | "PROVISIONED" | "SUSPENDED" | "STAGED" | "ACTIVE"]
 		    (to list all Staged users before deleting or activating users)
 
@@ -35,7 +34,6 @@ import threading
 
 okta_server = 'https://<>.okta.com'    # Update your Okta tenant https://<yourOrg>.okta.com
 api_token   = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'    # Enter your API token
-payload     = ""    # keep it empty string.
 headers     = {'Content-Type': "application/json",
            'Accept': "application/json", 'Authorization': f"SSWS {api_token}"}
 
@@ -46,7 +44,7 @@ delete_filter   = 'DEPROVISIONED'
 
 
 
-def main_function():
+def main():
 
     if (getuser_flag == 'YES'):
         print('****************** Listing Users ******************')
@@ -58,13 +56,13 @@ def main_function():
 
 
 """
-Print Users list in CSV file filter by STATUS (To confirm the users before
+Print Users list in CSV file, filter by STATUS (To confirm the users before
 deleting it)
 
 """
 def get_users():
     url = f'{okta_server}/api/v1/users?limit=200&filter=status eq "{getuser_filter}"'
-    okta_get_resp = requests.request("GET", url, data=payload, headers=headers)
+    okta_get_resp = requests.get(url, headers=headers)
     csv_file = os.getcwd() + '\Get_Okta_Users.csv'
 
     if okta_get_resp.status_code > 200:
@@ -106,8 +104,7 @@ def get_users():
                 nextLink = okta_get_resp.headers.get('Link')
                 nextLink = (nextLink[(nextLink.find(', <')+3):
                                      (nextLink.find('>; rel=\"next\"'))])
-                okta_get_resp = requests.request(
-                    "GET", nextLink, data=payload, headers=headers)
+                okta_get_resp = requests.get(nextLink, headers=headers)
 
 
 """
@@ -120,8 +117,7 @@ def delete_users_thread(row):
 
     while True:
         # This operation on a user that hasn't been deactivated causes that user to be deactivated. A second delete operation is required to actually DELETE the user.
-        okta_delete_resp = requests.request(
-            "DELETE", row["DeleteAPI"], data=payload, headers=headers)
+        okta_delete_resp = requests.delete(row["DeleteAPI"], headers=headers)
 
         if (okta_delete_resp.status_code == 429):
             sleep = int(okta_delete_resp.headers.get(
@@ -143,7 +139,7 @@ def delete_users_thread(row):
 def delete_users():
 
     url = f'{okta_server}/api/v1/users?limit=200&filter=status eq "{delete_filter}"'
-    okta_get_resp = requests.request("GET", url, data=payload, headers=headers)
+    okta_get_resp = requests.get(url, headers=headers)
     csv_file = os.getcwd() + '\Delete_Okta_Users.csv'
 
     if okta_get_resp.status_code > 200:
@@ -185,8 +181,7 @@ def delete_users():
                 nextLink = okta_get_resp.headers.get('Link')
                 nextLink = (nextLink[(nextLink.find(', <')+3):
                                      (nextLink.find('>; rel=\"next\"'))])
-                okta_get_resp = requests.request(
-                    "GET", nextLink, data=payload, headers=headers)
+                okta_get_resp = requests.get(nextLink, headers=headers)
 
     # Delete users starts from here
     with open(csv_file, mode='r') as csv_file:
@@ -204,4 +199,4 @@ def delete_users():
         print(f'Total {line_count - 1} users deleted successfully')
 
 
-main_function()
+main()
