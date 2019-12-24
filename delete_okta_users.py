@@ -11,15 +11,15 @@ import threading
     This code is to DELETE the Okta users in BULK based on its status. It will
     write user detail output in csv file.
 
-    This code use multi-threading to furiously delete the Okta users.
+    This code uses multi-threading to furiously delete the Okta users.
 
-	Please update the variables as below:
-		OKTA_SERVER   [https://<>.okta.com]
-		API_TOKEN     [Use your API Token which has privilege to delete users ]
+	Please update the environment variables in a file named '.env' as below:
+		OKTA_URL        [https://<>.okta.com]
+		OKTA_API_TOKEN  [Use your API Token which has privilege to delete users ]
 
+    Please initialize the variables as per your requirement:
 		DELETE_FLAG   [YES | NO]
 		GETUSER_FLAG  [YES | NO]
-
         DELETE_FILTER   ["DEPROVISIONED" (Deactivated) | "PROVISIONED" | "SUSPENDED" | "STAGED" | "ACTIVE"]
             (Delete users based on it's current status.)
 		GETUSER_FILTER  ["DEPROVISIONED" (Deactivated) | "PROVISIONED" | "SUSPENDED" | "STAGED" | "ACTIVE"]
@@ -33,9 +33,9 @@ import threading
     initialize variables
 """
 
-okta_server = 'https://<>.okta.com'    # Update your Okta tenant https://<yourOrg>.okta.com
-api_token   = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'    # Enter your API token
-payload     = ""    # keep it empty string.
+okta_server = os.environ.get('OKTA_URL')            # Update your Okta tenant https://<yourOrg>.okta.com in .env file
+api_token   = os.environ.get('OKTA_API_TOKEN')      # Update your Okta API token in .env file
+payload     = ""                                    # keep it empty string.
 headers     = {'Content-Type': "application/json",
            'Accept': "application/json", 'Authorization': f"SSWS {api_token}"}
 
@@ -49,18 +49,17 @@ delete_filter   = 'DEPROVISIONED'
 def main_function():
 
     if (getuser_flag == 'YES'):
-        print('****************** Listing Users ******************')
+        print('\n****************** Listing Users ******************')
         get_users()
 
     if (delete_flag == 'YES'):
-        print('****************** Deleting Users ******************')
+        print('\n****************** Deleting Users ******************')
         delete_users()
 
 
 """
 Print Users list in CSV file filter by STATUS (To confirm the users before
 deleting it)
-
 """
 def get_users():
     url = f'{okta_server}/api/v1/users?limit=200&filter=status eq "{getuser_filter}"'
@@ -85,11 +84,10 @@ def get_users():
                     'lastName'), emp.get('profile').get('firmCode'), emp.get('profile').get('email'), emp.get('profile').get('login'), emp.get('profile').get('sAMAccountName')])
 
             # Terminate if next url not found in 'Link' (response header)
-            if okta_get_resp.headers.get('Link') is None:
-                employee_data.close()
-                break
 
-            elif ((okta_get_resp.headers.get('Link').find('>; rel=\"next\"')) == -1):
+            nextLink = okta_get_resp.links.get('next')
+
+            if nextLink is None:
                 employee_data.close()
                 break
 
@@ -101,13 +99,9 @@ def get_users():
                     f'Waiting to reset X-Rate-Limit-Reset, Sleeping for {sleep} seconds')
                 time.sleep(5) if (sleep < 5) else time.sleep(sleep)
 
-            # Get the next URL link
-            else:
-                nextLink = okta_get_resp.headers.get('Link')
-                nextLink = (nextLink[(nextLink.find(', <')+3):
-                                     (nextLink.find('>; rel=\"next\"'))])
-                okta_get_resp = requests.request(
-                    "GET", nextLink, data=payload, headers=headers)
+            # Get the nextLink URL and make request
+            else :
+                okta_get_resp = requests.request("GET", nextLink['url'], data=payload, headers=headers)
 
 
 """
@@ -123,6 +117,7 @@ def delete_users_thread(row):
         okta_delete_resp = requests.request(
             "DELETE", row["DeleteAPI"], data=payload, headers=headers)
 
+        #  Wait if Rate-Limit exceed
         if (okta_delete_resp.status_code == 429):
             sleep = int(okta_delete_resp.headers.get(
                 'X-Rate-Limit-Reset')) - int(time.time())
@@ -130,9 +125,12 @@ def delete_users_thread(row):
                 f'Waiting to reset X-Rate-Limit-Reset, Sleeping for {sleep} seconds')
             time.sleep(5) if (sleep < 5) else time.sleep(sleep)
 
+        # status_code = 404 meaning user id not found. (user deleted successfully)
         if (okta_delete_resp.status_code == 404):
             break
 
+        # status_code = 400 meaning cannot delete Technical contact for the Org.
+        # status_code = 403 meaning cannot delete Okta Org Admin.
         if (okta_delete_resp.status_code == 400 or okta_delete_resp.status_code == 403):
             print(f'Cannot delete Okta Org Admin user {row["FirstName"]} {row["LastName"]} {okta_delete_resp.text}')
             break
@@ -164,11 +162,10 @@ def delete_users():
                     emp.get('id') + '?sendEmail=false'])
 
             # Terminate if next url not found in 'Link' (response header)
-            if okta_get_resp.headers.get('Link') is None:
-                employee_data.close()
-                break
 
-            elif ((okta_get_resp.headers.get('Link').find('>; rel=\"next\"')) == -1):
+            nextLink = okta_get_resp.links.get('next')
+
+            if nextLink is None:
                 employee_data.close()
                 break
 
@@ -180,13 +177,9 @@ def delete_users():
                     f'Waiting to reset X-Rate-Limit-Reset, Sleeping for {sleep} seconds')
                 time.sleep(5) if (sleep < 5) else time.sleep(sleep)
 
-            # Get the next URL link
+            # Get the nextLink URL and make request
             else:
-                nextLink = okta_get_resp.headers.get('Link')
-                nextLink = (nextLink[(nextLink.find(', <')+3):
-                                     (nextLink.find('>; rel=\"next\"'))])
-                okta_get_resp = requests.request(
-                    "GET", nextLink, data=payload, headers=headers)
+                okta_get_resp = requests.request("GET", nextLink['url'], data=payload, headers=headers)
 
     # Delete users starts from here
     with open(csv_file, mode='r') as csv_file:
@@ -201,7 +194,10 @@ def delete_users():
             x.start()
 
             line_count += 1
-        print(f'Total {line_count - 1} users deleted successfully')
+        if (line_count == 0):
+            print(f'Total {line_count} users deleted successfully')
+        else:
+            print(f'Total {line_count - 1} users deleted successfully')
 
 
 main_function()
