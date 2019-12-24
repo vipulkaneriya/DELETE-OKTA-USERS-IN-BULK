@@ -1,4 +1,3 @@
-import json
 import os
 import requests
 import csv
@@ -21,7 +20,7 @@ import threading
 		DELETE_FLAG   [YES | NO]
 		GETUSER_FLAG  [YES | NO]
         DELETE_FILTER   ["DEPROVISIONED" (Deactivated) | "PROVISIONED" | "SUSPENDED" | "STAGED" | "ACTIVE"]
-            (Delete users based on it's current status.)
+            (Delete users based on its current status.)
 		GETUSER_FILTER  ["DEPROVISIONED" (Deactivated) | "PROVISIONED" | "SUSPENDED" | "STAGED" | "ACTIVE"]
 		    (to list all Staged users before deleting or activating users)
 
@@ -35,7 +34,6 @@ import threading
 
 okta_server = os.environ.get('OKTA_URL')            # Update your Okta tenant https://<yourOrg>.okta.com in .env file
 api_token   = os.environ.get('OKTA_API_TOKEN')      # Update your Okta API token in .env file
-payload     = ""                                    # keep it empty string.
 headers     = {'Content-Type': "application/json",
            'Accept': "application/json", 'Authorization': f"SSWS {api_token}"}
 
@@ -45,8 +43,7 @@ delete_flag     = 'NO'      # [YES or NO] Change to 'YES' to DELETE users
 delete_filter   = 'DEPROVISIONED'
 
 
-
-def main_function():
+def main():
 
     if (getuser_flag == 'YES'):
         print('\n****************** Listing Users ******************')
@@ -58,12 +55,12 @@ def main_function():
 
 
 """
-Print Users list in CSV file filter by STATUS (To confirm the users before
+Print Users list in CSV file, filter by STATUS (To confirm the users before
 deleting it)
 """
 def get_users():
     url = f'{okta_server}/api/v1/users?limit=200&filter=status eq "{getuser_filter}"'
-    okta_get_resp = requests.request("GET", url, data=payload, headers=headers)
+    okta_get_resp = requests.get(url, headers=headers)
     csv_file = os.getcwd() + '\Get_Okta_Users.csv'
 
     if okta_get_resp.status_code > 200:
@@ -72,7 +69,7 @@ def get_users():
     else:
         employee_data = open(csv_file, 'w')
         csvwriter = csv.writer(employee_data, lineterminator='\n')
-        print('\nWriting to ' + csv_file)
+        print('\nWriting output to ' + csv_file)
         # Write Header in CSV
         csvwriter.writerow(['Okta_ID', 'Status', 'FirstName',
                             'LastName', 'FirmCode', 'Email', 'OktaLogin', 'sAMAccountName']),
@@ -91,7 +88,7 @@ def get_users():
                 employee_data.close()
                 break
 
-            #  Wait if Rate-Limit exceed
+            #  status_code = 429 meaning Rate-Limit exceed. this might not delete user. Waiting until okta reset rate limit.
             elif (okta_get_resp.status_code == 429):
                 sleep = int(okta_get_resp.headers.get(
                     'X-Rate-Limit-Reset')) - int(time.time())
@@ -99,9 +96,9 @@ def get_users():
                     f'Waiting to reset X-Rate-Limit-Reset, Sleeping for {sleep} seconds')
                 time.sleep(5) if (sleep < 5) else time.sleep(sleep)
 
-            # Get the nextLink URL and make request
+            # Get the nextLink URL and make a request
             else :
-                okta_get_resp = requests.request("GET", nextLink['url'], data=payload, headers=headers)
+                okta_get_resp = requests.get(nextLink['url'], headers=headers)
 
 
 """
@@ -114,10 +111,9 @@ def delete_users_thread(row):
 
     while True:
         # This operation on a user that hasn't been deactivated causes that user to be deactivated. A second delete operation is required to actually DELETE the user.
-        okta_delete_resp = requests.request(
-            "DELETE", row["DeleteAPI"], data=payload, headers=headers)
+        okta_delete_resp = requests.delete(row["DeleteAPI"], headers=headers)
 
-        #  Wait if Rate-Limit exceed
+        #  status_code = 429 meaning Rate-Limit exceed. this might not delete user. Waiting until okta reset rate limit.
         if (okta_delete_resp.status_code == 429):
             sleep = int(okta_delete_resp.headers.get(
                 'X-Rate-Limit-Reset')) - int(time.time())
@@ -141,7 +137,7 @@ def delete_users_thread(row):
 def delete_users():
 
     url = f'{okta_server}/api/v1/users?limit=200&filter=status eq "{delete_filter}"'
-    okta_get_resp = requests.request("GET", url, data=payload, headers=headers)
+    okta_get_resp = requests.get(url, headers=headers)
     csv_file = os.getcwd() + '\Delete_Okta_Users.csv'
 
     if okta_get_resp.status_code > 200:
@@ -150,7 +146,7 @@ def delete_users():
     else:
         employee_data = open(csv_file, 'w')
         csvwriter = csv.writer(employee_data, lineterminator='\n')
-        print('\nWriting to ' + csv_file)
+        print('\nWriting output to ' + csv_file)
         # Write Header in CSV
         csvwriter.writerow(['Okta_ID', 'Status', 'FirstName',
                             'LastName', 'FirmCode', 'Email', 'OktaLogin', 'sAMAccountName', 'DeleteAPI'])
@@ -169,7 +165,7 @@ def delete_users():
                 employee_data.close()
                 break
 
-            #  Wait if Rate-Limit exceed
+            #  status_code = 429 meaning Rate-Limit exceed. this might not delete user. Waiting until okta reset rate limit.
             elif (okta_get_resp.status_code == 429):
                 sleep = int(okta_get_resp.headers.get(
                     'X-Rate-Limit-Reset')) - int(time.time())
@@ -177,9 +173,9 @@ def delete_users():
                     f'Waiting to reset X-Rate-Limit-Reset, Sleeping for {sleep} seconds')
                 time.sleep(5) if (sleep < 5) else time.sleep(sleep)
 
-            # Get the nextLink URL and make request
+            # Get the nextLink URL and make a request
             else:
-                okta_get_resp = requests.request("GET", nextLink['url'], data=payload, headers=headers)
+                okta_get_resp = requests.get(nextLink['url'], headers=headers)
 
     # Delete users starts from here
     with open(csv_file, mode='r') as csv_file:
@@ -200,4 +196,4 @@ def delete_users():
             print(f'Total {line_count - 1} users deleted successfully')
 
 
-main_function()
+main()
