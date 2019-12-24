@@ -117,7 +117,7 @@ def delete_users_thread(row):
 
         # status_code = 400 meaning cannot delete Technical contact for the Org.
         # status_code = 403 meaning cannot delete Okta Org Admin.
-        if okta_delete_resp.status_code == 400 or okta_delete_resp.status_code == 403:
+        if okta_delete_resp.status_code in [400, 403]:
             print(f'Cannot delete Okta Org Admin user {row["FirstName"]} {row["LastName"]} {okta_delete_resp.text}')
             break
 
