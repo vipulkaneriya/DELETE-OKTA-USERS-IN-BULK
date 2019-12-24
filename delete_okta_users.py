@@ -12,8 +12,8 @@ import threading
     This code uses multi-threading to furiously delete the Okta users.
 
     Please update the environment variables in a file named '.env' as below:
-        OKTA_URL        [https://<>.okta.com]
-        OKTA_API_TOKEN  [Use your API Token which has privilege to delete users ]
+        OKTA_URL=[https://<>.okta.com]
+        OKTA_API_TOKEN=[Use your API Token which has privilege to delete users ]
 
     Please initialize the variables as per your requirement:
         DELETE_FLAG   [YES | NO]
