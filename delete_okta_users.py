@@ -12,8 +12,8 @@ import threading
     This code uses multi-threading to furiously delete the Okta users.
 
     Please update the environment variables in a file named '.env' as below:
-        OKTA_URL        [https://<>.okta.com]
-        OKTA_API_TOKEN  [Use your API Token which has privilege to delete users ]
+        OKTA_URL=[https://<>.okta.com]
+        OKTA_API_TOKEN=[Use your API Token which has privilege to delete users ]
 
     Please initialize the variables as per your requirement:
         DELETE_FLAG   [YES | NO]
@@ -43,21 +43,18 @@ delete_filter   = 'DEPROVISIONED'
 
 
 def main():
-
-    if (getuser_flag == 'YES'):
+    if getuser_flag == 'YES':
         print('\n****************** Listing Users ******************')
         get_users()
 
-    if (delete_flag == 'YES'):
+    if delete_flag == 'YES':
         print('\n****************** Deleting Users ******************')
         delete_users()
 
 
-"""
-Print Users list in CSV file, filter by STATUS (To confirm the users before
-deleting it)
-"""
 def get_users():
+    """Print Users list in CSV file, filter by STATUS (To confirm the users before
+    deleting it)"""
     url = f'{okta_server}/api/v1/users?limit=200&filter=status eq "{getuser_filter}"'
     okta_get_resp = requests.get(url, headers=headers)
     csv_file = os.getcwd() + '\Get_Okta_Users.csv'
@@ -88,45 +85,39 @@ def get_users():
                 break
 
             #  status_code = 429 meaning Rate-Limit exceed. this might not delete user. Waiting until okta reset rate limit.
-            elif (okta_get_resp.status_code == 429):
+            elif okta_get_resp.status_code == 429:
                 sleep = int(okta_get_resp.headers.get(
                     'X-Rate-Limit-Reset')) - int(time.time())
                 print(
                     f'Waiting to reset X-Rate-Limit-Reset, Sleeping for {sleep} seconds')
-                time.sleep(5) if (sleep < 5) else time.sleep(sleep)
+                time.sleep(5) if sleep < 5 else time.sleep(sleep)
 
             # Get the nextLink URL and make a request
-            else :
+            else:
                 okta_get_resp = requests.get(nextLink['url'], headers=headers)
 
 
-"""
-Delete users based on various filters
-
-"""
-
-
 def delete_users_thread(row):
-
+    """Delete users based on various filters"""
     while True:
         # This operation on a user that hasn't been deactivated causes that user to be deactivated. A second delete operation is required to actually DELETE the user.
         okta_delete_resp = requests.delete(row["DeleteAPI"], headers=headers)
 
         #  status_code = 429 meaning Rate-Limit exceed. this might not delete user. Waiting until okta reset rate limit.
-        if (okta_delete_resp.status_code == 429):
+        if okta_delete_resp.status_code == 429:
             sleep = int(okta_delete_resp.headers.get(
                 'X-Rate-Limit-Reset')) - int(time.time())
             print(
                 f'Waiting to reset X-Rate-Limit-Reset, Sleeping for {sleep} seconds')
-            time.sleep(5) if (sleep < 5) else time.sleep(sleep)
+            time.sleep(5) if sleep < 5 else time.sleep(sleep)
 
         # status_code = 404 meaning user id not found. (user deleted successfully)
-        if (okta_delete_resp.status_code == 404):
+        if okta_delete_resp.status_code == 404:
             break
 
         # status_code = 400 meaning cannot delete Technical contact for the Org.
         # status_code = 403 meaning cannot delete Okta Org Admin.
-        if (okta_delete_resp.status_code == 400 or okta_delete_resp.status_code == 403):
+        if okta_delete_resp.status_code in [400, 403]:
             print(f'Cannot delete Okta Org Admin user {row["FirstName"]} {row["LastName"]} {okta_delete_resp.text}')
             break
 
@@ -134,7 +125,6 @@ def delete_users_thread(row):
 
 
 def delete_users():
-
     url = f'{okta_server}/api/v1/users?limit=200&filter=status eq "{delete_filter}"'
     okta_get_resp = requests.get(url, headers=headers)
     csv_file = os.getcwd() + '\Delete_Okta_Users.csv'
@@ -165,12 +155,12 @@ def delete_users():
                 break
 
             #  status_code = 429 meaning Rate-Limit exceed. this might not delete user. Waiting until okta reset rate limit.
-            elif (okta_get_resp.status_code == 429):
+            elif okta_get_resp.status_code == 429:
                 sleep = int(okta_get_resp.headers.get(
                     'X-Rate-Limit-Reset')) - int(time.time())
                 print(
                     f'Waiting to reset X-Rate-Limit-Reset, Sleeping for {sleep} seconds')
-                time.sleep(5) if (sleep < 5) else time.sleep(sleep)
+                time.sleep(5) if sleep < 5 else time.sleep(sleep)
 
             # Get the nextLink URL and make a request
             else:
@@ -189,7 +179,7 @@ def delete_users():
             x.start()
 
             line_count += 1
-        if (line_count == 0):
+        if line_count == 0:
             print(f'Total {line_count} users deleted successfully')
         else:
             print(f'Total {line_count - 1} users deleted successfully')
