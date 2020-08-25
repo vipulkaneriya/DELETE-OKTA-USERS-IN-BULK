@@ -1,4 +1,4 @@
-# Okta User Lifecycle Management
+# Delete Okta Users in Bulk
 
 ===== delete_okta_users.py =====
 
